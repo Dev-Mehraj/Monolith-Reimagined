@@ -1,4 +1,4 @@
-# Monolith Reimagined
+# Monolith Reimagined(an IDE Monolith, That I made 2 years ago, now remade in CPP!)
 
 A full-featured Visual Studio Code replica written in modern C++20 using Qt6 Widgets.
 
