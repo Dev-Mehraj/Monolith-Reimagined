@@ -1,0 +1,60 @@
+```
+# Dependencies
+deps/
+
+# Build artifacts
+build/
+cmake-build-*/
+Makefile
+CMakeCache.txt
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# C++ specific
+*.out
+*.exe
+*.obj
+*.ilk
+*.pdb
+*.gch
+*.pch
+*.idb
+*.nib
+*.plist
+*.swp
+*.swo
+
+# CMake
+CMakeFiles/
+CMakeScripts/
+Testing/
+cmake_install.cmake
+install_manifest.txt
+```
