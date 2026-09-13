@@ -1,60 +1,29 @@
 ```
-# Dependencies
-deps/
-
 # Build artifacts
-build/
-cmake-build-*/
-Makefile
-CMakeCache.txt
 *.o
+*.obj
 *.a
+*.lib
 *.so
-*.dylib
 *.dll
+*.exe
+*.out
 
-# IDE files
-.vscode/
-.idea/
-*.swp
-*.swo
+# CMake build directory
+build/
 
-# Logs and temp files
+# Dependencies
+vendor/
+third_party/
+
+# Logs
 *.log
+
+# Temporary files
 *.tmp
+*.temp
 
-# Environment
-.env
-.env.local
-*.env.*
-
-# OS files
+# OS specific
 .DS_Store
 Thumbs.db
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
-
-# C++ specific
-*.out
-*.exe
-*.obj
-*.ilk
-*.pdb
-*.gch
-*.pch
-*.idb
-*.nib
-*.plist
-*.swp
-*.swo
-
-# CMake
-CMakeFiles/
-CMakeScripts/
-Testing/
-cmake_install.cmake
-install_manifest.txt
 ```

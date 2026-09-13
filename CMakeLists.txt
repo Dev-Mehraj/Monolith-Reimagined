@@ -20,6 +20,7 @@ option(ENABLE_LSP "Enable Language Server Protocol support" ON)
 option(ENABLE_GIT "Enable Git integration via libgit2" ON)
 option(ENABLE_TERMINAL "Enable integrated terminal" ON)
 option(ENABLE_EXTENSIONS "Enable JavaScript extension engine" ON)
+option(ENABLE_AI "Enable AI panel with llama.cpp integration" ON)
 
 # Qt6 Components
 find_package(Qt6 REQUIRED COMPONENTS 
@@ -32,15 +33,63 @@ find_package(Qt6 REQUIRED COMPONENTS
     Xml
 )
 
-# FetchContent for external dependencies
+# Use local deps folder if available, otherwise fetch from git
+if(EXISTS "${CMAKE_SOURCE_DIR}/deps")
+    message(STATUS "Using local dependencies from deps/ folder")
+    
+    # nlohmann_json from deps
+    if(EXISTS "${CMAKE_SOURCE_DIR}/deps/nlohmann_json")
+        add_subdirectory(${CMAKE_SOURCE_DIR}/deps/nlohmann_json)
+    endif()
+    
+    # tree-sitter from deps
+    if(EXISTS "${CMAKE_SOURCE_DIR}/deps/tree_sitter")
+        add_subdirectory(${CMAKE_SOURCE_DIR}/deps/tree_sitter EXCLUDE_FROM_ALL)
+    endif()
+    
+    # libgit2 from deps
+    if(ENABLE_GIT AND EXISTS "${CMAKE_SOURCE_DIR}/deps/libgit2")
+        add_subdirectory(${CMAKE_SOURCE_DIR}/deps/libgit2 EXCLUDE_FROM_ALL)
+    endif()
+    
+    # duktape from deps (JS engine alternative)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/deps/duktape")
+        add_library(duktape STATIC
+            ${CMAKE_SOURCE_DIR}/deps/duktape/duktape.c
+            ${CMAKE_SOURCE_DIR}/deps/duktape/duktape.h
+        )
+        target_include_directories(duktape PUBLIC ${CMAKE_SOURCE_DIR}/deps/duktape)
+    endif()
+    
+    # libvterm from deps
+    if(ENABLE_TERMINAL AND EXISTS "${CMAKE_SOURCE_DIR}/deps/libvterm")
+        add_subdirectory(${CMAKE_SOURCE_DIR}/deps/libvterm EXCLUDE_FROM_ALL)
+    endif()
+    
+    # llama.cpp from deps
+    if(ENABLE_AI AND EXISTS "${CMAKE_SOURCE_DIR}/deps/llama_cpp")
+        set(LLAMA_BUILD_SERVER ON CACHE BOOL "Build llama.cpp server" FORCE)
+        set(LLAMA_BUILD_TESTS OFF CACHE BOOL "Build llama.cpp tests" FORCE)
+        set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "Build llama.cpp examples" FORCE)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
+        add_subdirectory(${CMAKE_SOURCE_DIR}/deps/llama_cpp EXCLUDE_FROM_ALL)
+    endif()
+else()
+    # Fallback to FetchContent if deps folder doesn't exist
+    include(FetchContent)
+endif()
+
+# FetchContent for external dependencies (fallback or when deps not available)
 include(FetchContent)
 
-# nlohmann_json for JSON-RPC (LSP/DAP)
-FetchContent_Declare(nlohmann_json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    GIT_TAG v3.11.3
-)
-FetchContent_MakeAvailable(nlohmann_json)
+# nlohmann_json for JSON-RPC (LSP/DAP/AI)
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    FetchContent_Declare(nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.3
+    )
+    FetchContent_MakeAvailable(nlohmann_json)
+endif()
 
 # Qt Advanced Docking System
 FetchContent_Declare(qt_advanced_docking
@@ -49,16 +98,18 @@ FetchContent_Declare(qt_advanced_docking
 )
 FetchContent_MakeAvailable(qt_advanced_docking)
 
-# Tree-sitter for AST parsing
-FetchContent_Declare(tree_sitter
-    GIT_REPOSITORY https://github.com/tree-sitter/tree-sitter.git
-    GIT_TAG v0.22.6
-    SOURCE_SUBDIR lib
-)
-FetchContent_MakeAvailable(tree_sitter)
+# Tree-sitter for AST parsing (if not in deps)
+if(NOT TARGET tree-sitter)
+    FetchContent_Declare(tree_sitter
+        GIT_REPOSITORY https://github.com/tree-sitter/tree-sitter.git
+        GIT_TAG v0.22.6
+        SOURCE_SUBDIR lib
+    )
+    FetchContent_MakeAvailable(tree_sitter)
+endif()
 
-# Libgit2 for Git integration
-if(ENABLE_GIT)
+# Libgit2 for Git integration (if not in deps)
+if(ENABLE_GIT AND NOT TARGET libgit2)
     FetchContent_Declare(libgit2
         GIT_REPOSITORY https://github.com/libgit2/libgit2.git
         GIT_TAG v1.7.2
@@ -82,6 +133,22 @@ if(ENABLE_EXTENSIONS)
     )
     # QuickJS requires manual build setup
     # FetchContent_MakeAvailable(quickjs)
+endif()
+
+# llama.cpp for AI features
+if(ENABLE_AI AND NOT TARGET llama)
+    FetchContent_Declare(llama_cpp
+        GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
+        GIT_TAG b4963  # Stable release tag
+    )
+    FetchContent_GetProperties(llama_cpp)
+    if(NOT llama_cpp_POPULATED)
+        FetchContent_Populate(llama_cpp)
+        set(LLAMA_BUILD_SERVER ON CACHE BOOL "Build llama.cpp server" FORCE)
+        set(LLAMA_BUILD_TESTS OFF CACHE BOOL "Build llama.cpp tests" FORCE)
+        set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "Build llama.cpp examples" FORCE)
+        add_subdirectory(${llama_cpp_SOURCE_DIR} ${llama_cpp_BINARY_DIR} EXCLUDE_FROM_ALL)
+    endif()
 endif()
 
 # Source files
@@ -111,36 +178,40 @@ set(PROJECT_SOURCES
     src/theme/ThemeEngine.cpp
     src/utils/AsyncQueue.cpp
     src/utils/ProcessRunner.cpp
+    src/ai/LlamaClient.cpp
+    src/ai/AIPanel.cpp
 )
 
 set(PROJECT_HEADERS
-    include/core/MonolithApp.h
-    include/ui/MainWindow.h
-    include/editor/MonolithEditor.h
-    include/editor/MinimapWidget.h
-    include/lsp/LspClient.h
-    include/lsp/LspMessageHandler.h
-    include/lsp/LspTypes.h
-    include/git/GitManager.h
-    include/git/DiffViewer.h
-    include/ui/CommandPalette.h
-    include/ui/FuzzyMatcher.h
-    include/ui/ActivityBar.h
-    include/ui/SideBar.h
-    include/ui/StatusBar.h
-    include/ui/BreadcrumbBar.h
-    include/explorer/WorkspaceExplorer.h
-    include/explorer/FileTreeModel.h
-    include/explorer/GitStatusOverlay.h
-    include/terminal/MonolithTerminal.h
-    include/terminal/TerminalTab.h
-    include/debug/DapClient.h
-    include/debug/DapTypes.h
-    include/extensions/ExtensionEngine.h
-    include/theme/ThemeEngine.h
-    include/utils/AsyncQueue.h
-    include/utils/ProcessRunner.h
-    include/utils/Singleton.h
+    src/core/MonolithApp.h
+    src/ui/MainWindow.h
+    src/editor/MonolithEditor.h
+    src/editor/MinimapWidget.h
+    src/lsp/LspClient.h
+    src/lsp/LspMessageHandler.h
+    src/lsp/LspTypes.h
+    src/git/GitManager.h
+    src/git/DiffViewer.h
+    src/ui/CommandPalette.h
+    src/ui/FuzzyMatcher.h
+    src/ui/ActivityBar.h
+    src/ui/SideBar.h
+    src/ui/StatusBar.h
+    src/ui/BreadcrumbBar.h
+    src/explorer/WorkspaceExplorer.h
+    src/explorer/FileTreeModel.h
+    src/explorer/GitStatusOverlay.h
+    src/terminal/MonolithTerminal.h
+    src/terminal/TerminalTab.h
+    src/debug/DapClient.h
+    src/debug/DapTypes.h
+    src/extensions/ExtensionEngine.h
+    src/theme/ThemeEngine.h
+    src/utils/AsyncQueue.h
+    src/utils/ProcessRunner.h
+    src/utils/Singleton.h
+    src/ai/LlamaClient.h
+    src/ai/AIPanel.h
 )
 
 # Create executable
@@ -180,9 +251,26 @@ if(QScintilla_FOUND)
     target_compile_definitions(${PROJECT_NAME} PRIVATE USE_QSCINTILLA)
 endif()
 
-if(ENABLE_EXTENSIONS)
-    # QuickJS would be linked here
+if(ENABLE_EXTENSIONS AND TARGET duktape)
+    target_link_libraries(${PROJECT_NAME} PRIVATE duktape)
     target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_EXTENSION_ENGINE)
+endif()
+
+if(ENABLE_TERMINAL AND TARGET vterm)
+    target_link_libraries(${PROJECT_NAME} PRIVATE vterm)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_TERMINAL_EMULATOR)
+endif()
+
+# AI Panel with llama.cpp integration
+if(ENABLE_AI)
+    # Link llama library (llama.cpp provides this target)
+    if(TARGET llama)
+        target_link_libraries(${PROJECT_NAME} PRIVATE llama)
+    endif()
+    if(TARGET common)
+        target_link_libraries(${PROJECT_NAME} PRIVATE common)
+    endif()
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_AI_INTEGRATION)
 endif()
 
 # Compiler flags
